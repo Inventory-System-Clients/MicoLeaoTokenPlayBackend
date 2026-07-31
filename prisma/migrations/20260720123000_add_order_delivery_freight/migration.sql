@@ -1,0 +1,12 @@
+ALTER TABLE "product_orders" ADD COLUMN IF NOT EXISTS "delivery_zip_code" TEXT;
+ALTER TABLE "product_orders" ADD COLUMN IF NOT EXISTS "delivery_street" TEXT;
+ALTER TABLE "product_orders" ADD COLUMN IF NOT EXISTS "delivery_number" TEXT;
+ALTER TABLE "product_orders" ADD COLUMN IF NOT EXISTS "delivery_complement" TEXT;
+ALTER TABLE "product_orders" ADD COLUMN IF NOT EXISTS "delivery_neighborhood" TEXT;
+ALTER TABLE "product_orders" ADD COLUMN IF NOT EXISTS "delivery_city" TEXT;
+ALTER TABLE "product_orders" ADD COLUMN IF NOT EXISTS "delivery_state" TEXT;
+ALTER TABLE "product_orders" ADD COLUMN IF NOT EXISTS "delivery_latitude" DECIMAL(10, 7);
+ALTER TABLE "product_orders" ADD COLUMN IF NOT EXISTS "delivery_longitude" DECIMAL(10, 7);
+ALTER TABLE "product_orders" ADD COLUMN IF NOT EXISTS "freight_distance_km" DECIMAL(10, 2);
+ALTER TABLE "product_orders" ADD COLUMN IF NOT EXISTS "freight_estimated_minutes" INTEGER;
+ALTER TABLE "product_orders" ADD COLUMN IF NOT EXISTS "freight_amount_brl" DECIMAL(10, 2);

@@ -1,0 +1,374 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+}
+
+enum StoreStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MachineStatus {
+  AVAILABLE
+  BUSY
+  MAINTENANCE
+}
+
+enum TransactionStatus {
+  PENDING
+  APPROVED
+  FAILED
+}
+
+enum GameplayStatus {
+  SUCCESS
+  FAILED
+}
+
+enum LoyaltyLevelStatus {
+  ACTIVE
+  DRAFT
+}
+
+enum ProductOrderPaymentMethod {
+  CREDITS
+  POINTS
+  MONEY
+}
+
+enum ProductOrderStatus {
+  PENDING_PAYMENT
+  AWAITING_DELIVERY
+  DELIVERED
+  CANCELED
+  FAILED
+}
+
+enum PrivacyRequestType {
+  ACCESS
+  CORRECTION
+  DELETION
+  CONSENT_REVOCATION
+  OTHER
+}
+
+enum PrivacyRequestStatus {
+  OPEN
+  IN_REVIEW
+  COMPLETED
+  REJECTED
+}
+
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  cpf          String     @unique
+  phone        String?
+  addressZipCode      String? @map("address_zip_code")
+  addressStreet       String? @map("address_street")
+  addressNumber       String? @map("address_number")
+  addressComplement   String? @map("address_complement")
+  addressNeighborhood String? @map("address_neighborhood")
+  addressCity         String? @map("address_city")
+  addressState        String? @map("address_state")
+  passwordHash String     @map("password_hash")
+  status       UserStatus @default(ACTIVE)
+  role         UserRole   @default(CUSTOMER)
+  privacyAcceptedAt DateTime? @map("privacy_accepted_at")
+  privacyVersion    String?   @map("privacy_version")
+
+  creditBalance         Int @default(0) @map("credit_balance")
+  totalCreditsPurchased Int @default(0) @map("total_credits_purchased")
+  pointsBalance         Int @default(0) @map("points_balance")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  transactions Transaction[]
+  gameplayLogs GameplayLog[]
+  storeFavorites StoreFavorite[]
+  productOrders ProductOrder[]
+  privacyRequests PrivacyRequest[]
+
+  @@map("users")
+}
+
+model PrivacyRequest {
+  id        String               @id @default(uuid())
+  userId    String               @map("user_id")
+  type      PrivacyRequestType
+  message   String
+  status    PrivacyRequestStatus @default(OPEN)
+  response  String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status, createdAt])
+  @@map("privacy_requests")
+}
+
+model Store {
+  id       String      @id @default(uuid())
+  name     String
+  location String
+  status   StoreStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  machines Machine[]
+  favorites StoreFavorite[]
+
+  @@map("stores")
+}
+
+model StoreFavorite {
+  id      String @id @default(uuid())
+  userId  String @map("user_id")
+  storeId String @map("store_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storeId])
+  @@index([storeId])
+  @@map("store_favorites")
+}
+
+model Machine {
+  id          String        @id @default(uuid())
+  storeId     String        @map("store_id")
+  name        String
+  imageUrl    String?       @map("image_url")
+  telemetryId String        @unique @map("telemetry_id")
+  status      MachineStatus @default(AVAILABLE)
+
+  costPerGame     Int @map("cost_per_game")
+  pulsesPerCredit Int @map("pulses_per_credit")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store        Store         @relation(fields: [storeId], references: [id])
+  gameplayLogs GameplayLog[]
+  campaignMachineOverrides CampaignMachineOverride[]
+
+  @@index([storeId])
+  @@map("machines")
+}
+
+model LoyaltyLevel {
+  id                 String             @id @default(uuid())
+  levelName          String             @map("level_name")
+  requiredCredits    Int                @map("required_credits")
+  bonusCreditsReward Int                @default(0) @map("bonus_credits_reward")
+  pointsAwarded      Int                @default(0) @map("points_awarded")
+  status             LoyaltyLevelStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([requiredCredits])
+  @@map("loyalty_levels")
+}
+
+model CreditPackage {
+  id           String  @id @default(uuid())
+  name         String
+  amountBrl    Decimal @map("amount_brl") @db.Decimal(10, 2)
+  baseCredits  Int     @map("base_credits")
+  bonusCredits Int     @default(0) @map("bonus_credits")
+  pointsAwarded Int    @default(0) @map("points_awarded")
+  isPopular    Boolean @default(false) @map("is_popular")
+  showOnHome   Boolean @default(false) @map("show_on_home")
+  active       Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  transactions Transaction[]
+  campaignPackageOverrides CampaignPackageOverride[]
+
+  @@unique([name])
+  @@map("credit_packages")
+}
+
+model Campaign {
+  id        String   @id @default(uuid())
+  name      String
+  startsAt  DateTime @map("starts_at")
+  endsAt    DateTime @map("ends_at")
+  active    Boolean  @default(true)
+  notes     String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  packageOverrides CampaignPackageOverride[]
+  machineOverrides CampaignMachineOverride[]
+
+  @@index([active, startsAt, endsAt])
+  @@map("campaigns")
+}
+
+model CampaignPackageOverride {
+  id          String  @id @default(uuid())
+  campaignId  String  @map("campaign_id")
+  packageId   String  @map("package_id")
+  amountBrl   Decimal @map("amount_brl") @db.Decimal(10, 2)
+  baseCredits Int     @map("base_credits")
+  bonusCredits Int    @default(0) @map("bonus_credits")
+  isPopular   Boolean @default(false) @map("is_popular")
+  active      Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  campaign Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  package  CreditPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, packageId])
+  @@index([packageId])
+  @@map("campaign_package_overrides")
+}
+
+model CampaignMachineOverride {
+  id              String        @id @default(uuid())
+  campaignId      String        @map("campaign_id")
+  machineId       String        @map("machine_id")
+  costPerGame     Int           @map("cost_per_game")
+  pulsesPerCredit Int           @map("pulses_per_credit")
+  status          String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  machine  Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, machineId])
+  @@index([machineId])
+  @@map("campaign_machine_overrides")
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
+
+model Transaction {
+  id             String            @id @default(uuid())
+  userId         String            @map("user_id")
+  packageId      String?           @map("package_id")
+  amountBrl      Decimal           @map("amount_brl") @db.Decimal(10, 2)
+  creditsAwarded Int               @map("credits_awarded")
+  pointsAwarded  Int               @default(0) @map("points_awarded")
+  status         TransactionStatus @default(PENDING)
+
+  // Checkout Pro do Mercado Pago: o usuario paga com cartao OU Pix na pagina
+  // hospedada por eles (checkoutUrl), sem a gente lidar com dados de cartao.
+  checkoutUrl    String? @map("checkout_url")
+  mpPreferenceId String? @map("mp_preference_id")
+  mpPaymentId    String? @map("mp_payment_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user    User           @relation(fields: [userId], references: [id])
+  package CreditPackage? @relation(fields: [packageId], references: [id])
+
+  @@index([userId])
+  @@map("transactions")
+}
+
+model GameplayLog {
+  id             String         @id @default(uuid())
+  userId         String         @map("user_id")
+  machineId      String         @map("machine_id")
+  creditsDebited Int            @map("credits_debited")
+  pulsesSent     Int            @map("pulses_sent")
+  status         GameplayStatus
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user    User    @relation(fields: [userId], references: [id])
+  machine Machine @relation(fields: [machineId], references: [id])
+
+  @@index([userId])
+  @@index([machineId])
+  @@map("gameplay_logs")
+}
+
+model Product {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  imageUrl     String?  @map("image_url")
+  priceCredits Int?     @map("price_credits")
+  pricePoints  Int?     @map("price_points")
+  priceBrl     Decimal? @map("price_brl") @db.Decimal(10, 2)
+  cardPriceBrl Decimal? @map("card_price_brl") @db.Decimal(10, 2)
+  active       Boolean  @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  orders ProductOrder[]
+
+  @@map("products")
+}
+
+model ProductOrder {
+  id            String                    @id @default(uuid())
+  userId        String                    @map("user_id")
+  productId     String                    @map("product_id")
+  productName   String                    @map("product_name")
+  paymentMethod ProductOrderPaymentMethod @map("payment_method")
+  creditsSpent  Int                       @default(0) @map("credits_spent")
+  pointsSpent   Int                       @default(0) @map("points_spent")
+  amountBrl     Decimal?                  @map("amount_brl") @db.Decimal(10, 2)
+  status        ProductOrderStatus        @default(AWAITING_DELIVERY)
+
+  checkoutUrl    String? @map("checkout_url")
+  mpPreferenceId String? @map("mp_preference_id")
+  mpPaymentId    String? @map("mp_payment_id")
+
+  deliveredAt DateTime? @map("delivered_at")
+  canceledAt  DateTime? @map("canceled_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user    User    @relation(fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("product_orders")
+}
