@@ -27,7 +27,7 @@ const readEnv = (key: string) => {
 async function main() {
   const email = readEnv("ADMIN_EMAIL");
   const password = readEnv("ADMIN_PASSWORD");
-  const name = readEnv("ADMIN_NAME") || "Administrador Agarra Mais";
+  const name = readEnv("ADMIN_NAME") || "Administrador Mico Leão";
   const cpf = readEnv("ADMIN_CPF") || "00000000000";
 
   if (!email || !password) {

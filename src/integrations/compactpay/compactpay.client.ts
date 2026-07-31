@@ -65,7 +65,7 @@ export class CompactPayRequestError extends Error {
  * relatorios dela. A chamada e sincrona: o backend da CompactPay so responde
  * depois de aguardar (ou dar timeout) a confirmacao do pulso pela placa.
  *
- * Listagem de maquinas: GET /maquinas - usado pelo admin do Agarra Mais para
+ * Listagem de maquinas: GET /maquinas - usado pelo admin do Mico Leão para
  * escolher o telemetryId certo (o id_hardware real da CompactPay) na hora de
  * cadastrar uma Machine aqui, em vez de digitar as cegas.
  */
@@ -87,7 +87,7 @@ export class CompactPayGateway implements ICompactPayGateway {
         body: JSON.stringify({
           maquina_id: params.telemetryId,
           pulsos: params.pulses,
-          origem: "agarramais",
+          origem: "mico-leao",
           referencia_externa: params.correlationId,
         }),
       });

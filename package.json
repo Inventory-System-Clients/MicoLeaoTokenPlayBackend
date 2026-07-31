@@ -1,5 +1,5 @@
 {
-  "name": "agarramais-credits-backend",
+  "name": "mico-leao-credits-backend",
   "version": "1.0.0",
   "description": "API SaaS de creditos digitais e gamificacao para claw machines (integracao CompactPay)",
   "main": "dist/server.js",

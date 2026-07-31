@@ -33,7 +33,7 @@ export async function checkoutPackage(userId: string, packageId: string): Promis
   });
 
   const preference = await mercadoPagoGateway.createPreference({
-    title: `Agarra Mais - Pacote ${creditPackage.name}`,
+    title: `Mico Leão - Pacote ${creditPackage.name}`,
     amountBrl,
     externalReference: transaction.id,
     payerEmail: user.email,
@@ -64,7 +64,7 @@ export async function checkoutCustomCredits(userId: string, credits: number): Pr
   });
 
   const preference = await mercadoPagoGateway.createPreference({
-    title: `Agarra Mais - ${credits} ficha${credits > 1 ? "s" : ""}`,
+    title: `Mico Leão - ${credits} ficha${credits > 1 ? "s" : ""}`,
     amountBrl,
     externalReference: transaction.id,
     payerEmail: user.email,
@@ -105,7 +105,7 @@ export async function checkoutPackagePix(userId: string, packageId: string): Pro
 
   const pixGateway = await getConfiguredPixGateway();
   const pix = await pixGateway.createPixPayment({
-    title: `Agarra Mais - Pacote ${creditPackage.name}`,
+    title: `Mico Leão - Pacote ${creditPackage.name}`,
     amountBrl,
     externalReference: transaction.id,
     payerEmail: user.email,
@@ -136,7 +136,7 @@ export async function checkoutCustomCreditsPix(userId: string, credits: number):
 
   const pixGateway = await getConfiguredPixGateway();
   const pix = await pixGateway.createPixPayment({
-    title: `Agarra Mais - ${credits} ficha${credits > 1 ? "s" : ""}`,
+    title: `Mico Leão - ${credits} ficha${credits > 1 ? "s" : ""}`,
     amountBrl,
     externalReference: transaction.id,
     payerEmail: user.email,

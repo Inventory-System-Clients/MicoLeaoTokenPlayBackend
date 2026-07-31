@@ -94,7 +94,7 @@ export class MercadoPagoGateway implements IMercadoPagoGateway {
         },
         auto_return: "approved",
         notification_url: `${env.BACKEND_PUBLIC_URL.replace(/\/$/, "")}/webhooks/mercadopago`,
-        statement_descriptor: "AGARRA MAIS",
+        statement_descriptor: "MICO LEAO",
       }),
     });
 

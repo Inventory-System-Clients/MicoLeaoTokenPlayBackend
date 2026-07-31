@@ -122,7 +122,7 @@ async function requestJson<T>({ method, url, headers = {}, body, config, label }
         path: `${parsed.pathname}${parsed.search}`,
         headers: {
           Accept: "application/json",
-          "User-Agent": "AgarraMais/1.0",
+          "User-Agent": "MicoLeao/1.0",
           ...headers,
         },
         ...buildCertificateOptions(config),

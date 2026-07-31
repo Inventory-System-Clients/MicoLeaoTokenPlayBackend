@@ -127,7 +127,7 @@ export async function checkoutProductWithMoney(userId: string, productId: string
   });
 
   const preference = await mercadoPagoGateway.createPreference({
-    title: `Agarra Mais - ${product.name}`,
+    title: `Mico Leão - ${product.name}`,
     amountBrl,
     externalReference: order.id,
     payerEmail: user.email,
@@ -175,7 +175,7 @@ export async function checkoutProductWithMoneyPix(userId: string, productId: str
 
   const pixGateway = await getConfiguredPixGateway();
   const pix = await pixGateway.createPixPayment({
-    title: `Agarra Mais - ${product.name}`,
+    title: `Mico Leão - ${product.name}`,
     amountBrl,
     externalReference: order.id,
     payerEmail: user.email,
