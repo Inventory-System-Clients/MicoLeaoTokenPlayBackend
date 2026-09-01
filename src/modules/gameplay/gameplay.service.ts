@@ -133,7 +133,7 @@ export async function listUserGameplayLogs(userId: string) {
   return prisma.gameplayLog.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
-    take: 50,
+    take: 200,
     include: {
       machine: {
         select: {
