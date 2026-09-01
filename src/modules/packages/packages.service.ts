@@ -18,7 +18,7 @@ export async function listHomePackages() {
     take: 6,
   });
 
-  return applyActivePackageOverrides(packages);
+  return applyActivePackageOverrides(packages, { homeOnly: true });
 }
 
 export async function listAllPackages() {

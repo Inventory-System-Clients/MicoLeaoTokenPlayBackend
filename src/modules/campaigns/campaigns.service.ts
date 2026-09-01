@@ -142,7 +142,7 @@ export async function getActiveCampaign(now = new Date()) {
 
 export async function getEffectivePackage(packageId: string) {
   const creditPackage = await prisma.creditPackage.findUnique({ where: { id: packageId } });
-  if (!creditPackage || !creditPackage.active) {
+  if (!creditPackage) {
     throw new NotFoundError("Pacote de fichas nao encontrado");
   }
 
@@ -151,26 +151,36 @@ export async function getEffectivePackage(packageId: string) {
     (item) => item.packageId === packageId && item.active,
   );
 
+  // Pacote exclusivo de campanha: active:false na base, so "existe" de
+  // verdade (inclusive pra compra) enquanto o override da campanha em
+  // andamento estiver ativo.
+  const effectiveActive = override?.active ?? creditPackage.active;
+  if (!effectiveActive) {
+    throw new NotFoundError("Pacote de fichas nao encontrado");
+  }
+
   return {
     ...creditPackage,
     amountBrl: override?.amountBrl ?? creditPackage.amountBrl,
     baseCredits: override?.baseCredits ?? creditPackage.baseCredits,
     bonusCredits: override?.bonusCredits ?? creditPackage.bonusCredits,
     isPopular: override?.isPopular ?? creditPackage.isPopular,
-    active: override?.active ?? creditPackage.active,
+    active: effectiveActive,
   };
 }
 
 export async function applyActivePackageOverrides<T extends { id: string; active: boolean }>(
   packages: T[],
+  options: { homeOnly?: boolean } = {},
 ) {
   const campaign = await getActiveCampaign();
   const overrides = new Map(campaign?.packageOverrides.map((item) => [item.packageId, item]) ?? []);
 
-  return packages
+  const merged = packages
     .map((creditPackage) => {
       const override = overrides.get(creditPackage.id);
       if (!override) return creditPackage;
+      overrides.delete(creditPackage.id);
       return {
         ...creditPackage,
         amountBrl: override.amountBrl,
@@ -181,6 +191,35 @@ export async function applyActivePackageOverrides<T extends { id: string; active
       };
     })
     .filter((creditPackage) => creditPackage.active);
+
+  // Pacotes exclusivos de campanha: nascem com active:false (nunca aparecem
+  // fora de campanha) e so entram na lista quando sobra um override ativo
+  // da campanha em andamento cujo pacote base nao estava entre os `packages`
+  // ja ativos recebidos (ou seja, so existe "por causa" da campanha).
+  const exclusiveOverrides = [...overrides.values()].filter((item) => item.active);
+  if (exclusiveOverrides.length === 0) {
+    return merged as T[];
+  }
+
+  const exclusivePackages = await prisma.creditPackage.findMany({
+    where: { id: { in: exclusiveOverrides.map((item) => item.packageId) } },
+  });
+
+  const exclusiveMerged = exclusivePackages
+    .filter((creditPackage) => !options.homeOnly || creditPackage.showOnHome)
+    .map((creditPackage) => {
+      const override = exclusiveOverrides.find((item) => item.packageId === creditPackage.id)!;
+      return {
+        ...creditPackage,
+        amountBrl: override.amountBrl,
+        baseCredits: override.baseCredits,
+        bonusCredits: override.bonusCredits,
+        isPopular: override.isPopular,
+        active: true,
+      };
+    });
+
+  return [...merged, ...exclusiveMerged] as T[];
 }
 
 export async function applyActiveMachineOverride<T extends Machine>(machine: T): Promise<T> {
