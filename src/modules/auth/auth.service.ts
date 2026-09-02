@@ -1,4 +1,5 @@
 import { randomBytes, createHash } from "node:crypto";
+import { verify as verifyTotp } from "otplib";
 import { prisma } from "../../utils/prisma";
 import { hashPassword, comparePassword } from "../../utils/password";
 import { BadRequestError, ConflictError, UnauthorizedError } from "../../utils/http-error";
@@ -51,6 +52,25 @@ export async function authenticateUser(email: string, password: string) {
   const passwordMatches = await comparePassword(password, user.passwordHash);
   if (!passwordMatches) {
     throw new UnauthorizedError("Email ou senha invalidos");
+  }
+
+  return user;
+}
+
+/**
+ * Segundo passo do login quando o usuario tem 2FA ativo: recebe o `sub` ja
+ * validado do token pendente (assinatura conferida na rota, que e' quem tem
+ * acesso a instancia do fastify-jwt) e confere o codigo TOTP.
+ */
+export async function verifyTwoFactorLoginCode(userId: string, code: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || user.status !== "ACTIVE" || !user.twoFactorEnabled || !user.twoFactorSecret) {
+    throw new UnauthorizedError("Nao foi possivel completar o login");
+  }
+
+  const result = await verifyTotp({ token: code, secret: user.twoFactorSecret, epochTolerance: 30 });
+  if (!result.valid) {
+    throw new UnauthorizedError("Codigo invalido");
   }
 
   return user;

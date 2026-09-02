@@ -1,6 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { authenticateUser, registerUser, requestPasswordReset, resetPassword } from "./auth.service";
+import {
+  authenticateUser,
+  registerUser,
+  requestPasswordReset,
+  resetPassword,
+  verifyTwoFactorLoginCode,
+} from "./auth.service";
+import type { JwtPayload } from "../../plugins/auth";
+import { UnauthorizedError } from "../../utils/http-error";
 
 const registerBodySchema = z.object({
   name: z.string().min(2),
@@ -26,6 +34,11 @@ const forgotPasswordBodySchema = z.object({
 const resetPasswordBodySchema = z.object({
   token: z.string().min(1),
   password: z.string().min(6),
+});
+
+const login2faBodySchema = z.object({
+  pendingToken: z.string().min(1),
+  code: z.string().length(6),
 });
 
 // Rotas alvo de forca bruta ganham um limite bem mais apertado que o geral
@@ -56,6 +69,40 @@ export async function authRoutes(app: FastifyInstance) {
       const body = loginBodySchema.parse(request.body);
       const user = await authenticateUser(body.email, body.password);
 
+      if (user.twoFactorEnabled) {
+        // Senha confirmada, mas falta o segundo fator: token de vida curta
+        // que NAO serve pra chamar nenhuma rota autenticada normal (ver
+        // checagem de pending2fa em plugins/auth.ts).
+        const pendingToken = app.jwt.sign({ sub: user.id, pending2fa: true }, { expiresIn: "5m" });
+        return reply.status(200).send({ twoFactorRequired: true, pendingToken });
+      }
+
+      const token = app.jwt.sign({ sub: user.id, role: user.role });
+
+      return reply.status(200).send({
+        token,
+        user: { id: user.id, name: user.name, email: user.email },
+      });
+    },
+  );
+
+  app.post(
+    "/auth/login/2fa",
+    { config: { rateLimit: bruteForceRateLimit } },
+    async (request, reply) => {
+      const { pendingToken, code } = login2faBodySchema.parse(request.body);
+
+      let payload: JwtPayload;
+      try {
+        payload = app.jwt.verify<JwtPayload>(pendingToken);
+      } catch {
+        throw new UnauthorizedError("Sessao de login expirada. Entre novamente.");
+      }
+      if (!("pending2fa" in payload)) {
+        throw new UnauthorizedError("Token invalido");
+      }
+
+      const user = await verifyTwoFactorLoginCode(payload.sub, code);
       const token = app.jwt.sign({ sub: user.id, role: user.role });
 
       return reply.status(200).send({

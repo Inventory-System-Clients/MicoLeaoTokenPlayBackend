@@ -1,5 +1,7 @@
+import { generateSecret, generateURI, verify as verifyTotp } from "otplib";
+import QRCode from "qrcode";
 import { prisma } from "../../utils/prisma";
-import { hashPassword } from "../../utils/password";
+import { hashPassword, comparePassword } from "../../utils/password";
 import { BadRequestError, NotFoundError } from "../../utils/http-error";
 import { recordAuditLog } from "../audit/audit.service";
 
@@ -27,6 +29,8 @@ const userProfileSelect = {
   email: true,
   cpf: true,
   phone: true,
+  role: true,
+  twoFactorEnabled: true,
   addressZipCode: true,
   addressStreet: true,
   addressNumber: true,
@@ -457,4 +461,76 @@ export async function updateAdminPrivacyRequest(
   });
 
   return updated;
+}
+
+/**
+ * Gera um secret TOTP novo e guarda com twoFactorEnabled:false ate ser
+ * confirmado em verifyAndEnableTwoFactor - so nasce "ativo" depois que o
+ * usuario prova que configurou o autenticador direito.
+ */
+export async function setupTwoFactor(userId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } });
+  if (!user) {
+    throw new NotFoundError("Usuario nao encontrado");
+  }
+
+  const secret = generateSecret();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { twoFactorSecret: secret, twoFactorEnabled: false },
+  });
+
+  const otpauthUrl = generateURI({ issuer: "Mico Leão", label: user.email, secret });
+  const qrDataUrl = await QRCode.toDataURL(otpauthUrl);
+
+  return {
+    secret,
+    otpauthUrl,
+    qrCodeBase64: qrDataUrl.replace(/^data:image\/png;base64,/, ""),
+  };
+}
+
+export async function verifyAndEnableTwoFactor(userId: string, code: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { twoFactorSecret: true } });
+  if (!user?.twoFactorSecret) {
+    throw new BadRequestError("Nenhuma configuracao de 2FA pendente. Inicie a ativacao novamente.");
+  }
+
+  const result = await verifyTotp({ token: code, secret: user.twoFactorSecret, epochTolerance: 30 });
+  if (!result.valid) {
+    throw new BadRequestError("Codigo invalido");
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { twoFactorEnabled: true } });
+
+  recordAuditLog({
+    actorId: userId,
+    action: "auth.2fa_enabled",
+    entityType: "User",
+    entityId: userId,
+  });
+}
+
+export async function disableTwoFactor(userId: string, password: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError("Usuario nao encontrado");
+  }
+
+  const passwordMatches = await comparePassword(password, user.passwordHash);
+  if (!passwordMatches) {
+    throw new BadRequestError("Senha incorreta");
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { twoFactorSecret: null, twoFactorEnabled: false },
+  });
+
+  recordAuditLog({
+    actorId: userId,
+    action: "auth.2fa_disabled",
+    entityType: "User",
+    entityId: userId,
+  });
 }

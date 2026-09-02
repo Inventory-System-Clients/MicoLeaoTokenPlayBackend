@@ -6,15 +6,18 @@ import {
   createAdminUser,
   acceptCurrentPrivacyPolicy,
   createPrivacyRequest,
+  disableTwoFactor,
   getUserProfile,
   getUserPrivacyStatus,
   getUserPrivacyData,
   grantUserCredits,
   listAdminPrivacyRequests,
   listAdminUsers,
+  setupTwoFactor,
   updateAdminUser,
   updateAdminPrivacyRequest,
   updateUserProfile,
+  verifyAndEnableTwoFactor,
 } from "./users.service";
 
 const userParamsSchema = z.object({ id: z.string().uuid() });
@@ -80,6 +83,14 @@ const privacyRequestUpdateSchema = z.object({
   response: z.string().max(4000).nullable().optional(),
 });
 
+const twoFactorCodeSchema = z.object({
+  code: z.string().length(6),
+});
+
+const twoFactorDisableSchema = z.object({
+  password: z.string().min(6),
+});
+
 export async function usersRoutes(app: FastifyInstance) {
   app.get("/users/me", { onRequest: [app.authenticate] }, async (request, reply) => {
     const summary = await getUserNavbarSummary(request.user.sub);
@@ -116,6 +127,23 @@ export async function usersRoutes(app: FastifyInstance) {
     const body = privacyRequestSchema.parse(request.body);
     const privacyRequest = await createPrivacyRequest(request.user.sub, body);
     return reply.status(201).send(privacyRequest);
+  });
+
+  app.post("/users/me/2fa/setup", { onRequest: [app.authenticate] }, async (request, reply) => {
+    const data = await setupTwoFactor(request.user.sub);
+    return reply.status(200).send(data);
+  });
+
+  app.post("/users/me/2fa/verify", { onRequest: [app.authenticate] }, async (request, reply) => {
+    const { code } = twoFactorCodeSchema.parse(request.body);
+    await verifyAndEnableTwoFactor(request.user.sub, code);
+    return reply.status(200).send({ twoFactorEnabled: true });
+  });
+
+  app.post("/users/me/2fa/disable", { onRequest: [app.authenticate] }, async (request, reply) => {
+    const { password } = twoFactorDisableSchema.parse(request.body);
+    await disableTwoFactor(request.user.sub, password);
+    return reply.status(200).send({ twoFactorEnabled: false });
   });
 
   app.get("/admin/users", { onRequest: [app.requireAdmin] }, async (_request, reply) => {
