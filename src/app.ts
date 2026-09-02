@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { env } from "./config/env";
 import authPlugin from "./plugins/auth";
-import { HttpError } from "./utils/http-error";
+import { ForbiddenError, HttpError } from "./utils/http-error";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { usersRoutes } from "./modules/users/users.routes";
 import { storesRoutes } from "./modules/stores/stores.routes";
@@ -37,7 +37,7 @@ export function buildApp() {
         callback(null, true);
         return;
       }
-      callback(new Error("Origem nao permitida"), false);
+      callback(new ForbiddenError("Origem nao permitida"), false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
