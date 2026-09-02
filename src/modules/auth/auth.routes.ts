@@ -19,28 +19,40 @@ const loginBodySchema = z.object({
   password: z.string().min(6),
 });
 
+// Rotas alvo de forca bruta ganham um limite bem mais apertado que o geral
+// (100/min) registrado em app.ts.
+const bruteForceRateLimit = { max: 5, timeWindow: "1 minute" };
+
 export async function authRoutes(app: FastifyInstance) {
-  app.post("/auth/register", async (request, reply) => {
-    const body = registerBodySchema.parse(request.body);
-    const user = await registerUser(body);
+  app.post(
+    "/auth/register",
+    { config: { rateLimit: bruteForceRateLimit } },
+    async (request, reply) => {
+      const body = registerBodySchema.parse(request.body);
+      const user = await registerUser(body);
 
-    const token = app.jwt.sign({ sub: user.id, role: user.role });
+      const token = app.jwt.sign({ sub: user.id, role: user.role });
 
-    return reply.status(201).send({
-      token,
-      user: { id: user.id, name: user.name, email: user.email },
-    });
-  });
+      return reply.status(201).send({
+        token,
+        user: { id: user.id, name: user.name, email: user.email },
+      });
+    },
+  );
 
-  app.post("/auth/login", async (request, reply) => {
-    const body = loginBodySchema.parse(request.body);
-    const user = await authenticateUser(body.email, body.password);
+  app.post(
+    "/auth/login",
+    { config: { rateLimit: bruteForceRateLimit } },
+    async (request, reply) => {
+      const body = loginBodySchema.parse(request.body);
+      const user = await authenticateUser(body.email, body.password);
 
-    const token = app.jwt.sign({ sub: user.id, role: user.role });
+      const token = app.jwt.sign({ sub: user.id, role: user.role });
 
-    return reply.status(200).send({
-      token,
-      user: { id: user.id, name: user.name, email: user.email },
-    });
-  });
+      return reply.status(200).send({
+        token,
+        user: { id: user.id, name: user.name, email: user.email },
+      });
+    },
+  );
 }

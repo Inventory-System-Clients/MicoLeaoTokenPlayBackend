@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { getUserNavbarSummary } from "../loyalty/loyalty.service";
 import {
+  anonymizeUser,
   createAdminUser,
   acceptCurrentPrivacyPolicy,
   createPrivacyRequest,
@@ -26,6 +27,10 @@ const userUpdateSchema = z.object({
   password: z.string().min(6).optional(),
   status: z.enum(["ACTIVE", "BLOCKED"]).optional(),
   role: z.enum(["CUSTOMER", "ADMIN"]).optional(),
+  // Valvula de escape: um admin consegue desativar o 2FA de outro usuario
+  // que perdeu o acesso ao autenticador. So aceita "false" por essa rota -
+  // ativar 2FA so acontece pelo fluxo proprio (/users/me/2fa/*).
+  twoFactorEnabled: z.literal(false).optional(),
 });
 
 const userCreateSchema = z.object({
@@ -120,7 +125,7 @@ export async function usersRoutes(app: FastifyInstance) {
 
   app.post("/admin/users", { onRequest: [app.requireAdmin] }, async (request, reply) => {
     const body = userCreateSchema.parse(request.body);
-    const user = await createAdminUser(body);
+    const user = await createAdminUser(request.user.sub, body);
     return reply.status(201).send(user);
   });
 
@@ -128,6 +133,12 @@ export async function usersRoutes(app: FastifyInstance) {
     const { id } = userParamsSchema.parse(request.params);
     const body = userUpdateSchema.parse(request.body);
     const user = await updateAdminUser(request.user.sub, id, body);
+    return reply.status(200).send(user);
+  });
+
+  app.delete("/admin/users/:id", { onRequest: [app.requireAdmin] }, async (request, reply) => {
+    const { id } = userParamsSchema.parse(request.params);
+    const user = await anonymizeUser(request.user.sub, id);
     return reply.status(200).send(user);
   });
 
@@ -146,7 +157,7 @@ export async function usersRoutes(app: FastifyInstance) {
   app.put("/admin/privacy-requests/:id", { onRequest: [app.requireAdmin] }, async (request, reply) => {
     const { id } = privacyRequestParamsSchema.parse(request.params);
     const body = privacyRequestUpdateSchema.parse(request.body);
-    const privacyRequest = await updateAdminPrivacyRequest(id, body);
+    const privacyRequest = await updateAdminPrivacyRequest(request.user.sub, id, body);
     return reply.status(200).send(privacyRequest);
   });
 }

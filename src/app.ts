@@ -1,7 +1,9 @@
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
+import { env } from "./config/env";
 import authPlugin from "./plugins/auth";
 import { HttpError } from "./utils/http-error";
 import { authRoutes } from "./modules/auth/auth.routes";
@@ -18,28 +20,36 @@ import { reportsAdminRoutes } from "./modules/admin/reports.routes";
 import { campaignsAdminRoutes } from "./modules/campaigns/campaigns.routes";
 import { productsRoutes } from "./modules/products/products.routes";
 import { ordersRoutes } from "./modules/orders/orders.routes";
+import { auditRoutes } from "./modules/audit/audit.routes";
+
+// Origens explicitamente permitidas a chamar a API (nao reflete mais
+// qualquer Origin recebido - so libera o front de producao e o dev local).
+const ALLOWED_ORIGINS = new Set(
+  [env.APP_BASE_URL, "http://localhost:5173", "http://localhost:4173"].filter(Boolean),
+);
 
 export function buildApp() {
   const app = Fastify({ logger: true });
 
-  app.addHook("onRequest", async (request, reply) => {
-    const origin = request.headers.origin;
-    reply.header("Access-Control-Allow-Origin", origin || "*");
-    reply.header("Vary", "Origin");
-    reply.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-    reply.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
-    reply.header("Access-Control-Max-Age", "86400");
-
-    if (request.method === "OPTIONS") {
-      return reply.status(204).send();
-    }
-  });
-
   app.register(cors, {
-    origin: true,
+    origin: (origin, callback) => {
+      if (!origin || ALLOWED_ORIGINS.has(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Origem nao permitida"), false);
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   });
+
+  // Limite geral pra qualquer rota, mais um limite apertado especifico nas
+  // rotas de autenticacao (alvo de forca bruta) registrado por rota abaixo.
+  app.register(rateLimit, {
+    max: 100,
+    timeWindow: "1 minute",
+  });
+
   app.register(authPlugin);
 
   app.register(authRoutes);
@@ -56,6 +66,7 @@ export function buildApp() {
   app.register(campaignsAdminRoutes);
   app.register(productsRoutes);
   app.register(ordersRoutes);
+  app.register(auditRoutes);
 
   app.get("/health", async () => ({ status: "ok" }));
 
