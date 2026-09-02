@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "npm install && prisma generate && tsc -p tsconfig.json",
+    "build": "npm install --include=dev && prisma generate && tsc -p tsconfig.json",
     "start": "npm run build && node dist/scripts/start-production.js",
     "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",
