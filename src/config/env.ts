@@ -66,6 +66,13 @@ const rawEnvSchema = z.object({
   // Usadas para montar back_urls (retorno do checkout) e notification_url (webhook).
   APP_BASE_URL: z.string().url().default("http://localhost:5173"),
   BACKEND_PUBLIC_URL: z.string().url().default("http://localhost:3333"),
+
+  // E-mail transacional (reset de senha). Sem RESEND_API_KEY, o link e so
+  // logado no servidor em vez de enviado de verdade - mesmo espirito do
+  // COMPACTPAY_MOCK/MP_MOCK, sem exigir conta em servico externo pra
+  // desenvolver/testar o fluxo inteiro.
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM_EMAIL: z.string().default("Mico Leão <onboarding@resend.dev>"),
 });
 
 const parsed = rawEnvSchema.parse(normalizedEnv);

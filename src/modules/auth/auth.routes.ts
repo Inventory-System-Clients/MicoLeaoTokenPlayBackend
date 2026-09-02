@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { authenticateUser, registerUser } from "./auth.service";
+import { authenticateUser, registerUser, requestPasswordReset, resetPassword } from "./auth.service";
 
 const registerBodySchema = z.object({
   name: z.string().min(2),
@@ -16,6 +16,15 @@ const registerBodySchema = z.object({
 
 const loginBodySchema = z.object({
   email: z.string().email(),
+  password: z.string().min(6),
+});
+
+const forgotPasswordBodySchema = z.object({
+  email: z.string().email(),
+});
+
+const resetPasswordBodySchema = z.object({
+  token: z.string().min(1),
   password: z.string().min(6),
 });
 
@@ -53,6 +62,29 @@ export async function authRoutes(app: FastifyInstance) {
         token,
         user: { id: user.id, name: user.name, email: user.email },
       });
+    },
+  );
+
+  app.post(
+    "/auth/forgot-password",
+    { config: { rateLimit: bruteForceRateLimit } },
+    async (request, reply) => {
+      const { email } = forgotPasswordBodySchema.parse(request.body);
+      await requestPasswordReset(email);
+      // Resposta generica sempre - nao revela se o e-mail tem conta.
+      return reply.status(200).send({
+        message: "Se esse e-mail tiver uma conta, enviamos um link para redefinir a senha.",
+      });
+    },
+  );
+
+  app.post(
+    "/auth/reset-password",
+    { config: { rateLimit: bruteForceRateLimit } },
+    async (request, reply) => {
+      const { token, password } = resetPasswordBodySchema.parse(request.body);
+      await resetPassword(token, password);
+      return reply.status(200).send({ message: "Senha redefinida com sucesso." });
     },
   );
 }
