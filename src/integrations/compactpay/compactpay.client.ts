@@ -15,7 +15,7 @@ type CreditoDigitalResponse = {
   topic: string | null;
   payload: string;
   command_id: string;
-  pulse_status: string;
+  command_status: string;
   referencia_externa: string | null;
   data_hora: string;
 };
@@ -27,8 +27,22 @@ type CreditoTesteResponse = {
   payload: string;
   valor: number;
   command_id: string;
-  pulse_status: string;
+  command_status: string;
 };
+
+// Espelha ComandoMaquina.status no lado da CompactPay (ver command_queue.py).
+type ComandoMaquinaStatus = {
+  command_id: string;
+  status: string;
+  detalhe_status: string | null;
+};
+
+const FINAL_SUCCESS_COMMAND_STATUS = "executado";
+const FINAL_FAILURE_COMMAND_STATUSES = new Set(["falhou", "cancelado"]);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 type MaquinaOutResponse = {
   id_hardware: string;
@@ -93,12 +107,7 @@ export class CompactPayGateway implements ICompactPayGateway {
       });
 
       const data = (await response.json()) as CreditoDigitalResponse;
-
-      return {
-        ok: data.pulse_status === "pulso_confirmado" || data.pulse_status === "saldo_pendente",
-        commandId: data.command_id,
-        pulseStatus: data.pulse_status,
-      };
+      return this.waitForCommandResult(data.command_id);
     } catch (error) {
       if (error instanceof CompactPayRequestError && error.upstreamStatusCode === 404) {
         return this.firePulsesViaLegacyCreditTest(params);
@@ -120,12 +129,44 @@ export class CompactPayGateway implements ICompactPayGateway {
     });
 
     const data = (await response.json()) as CreditoTesteResponse;
+    return this.waitForCommandResult(data.command_id);
+  }
 
-    return {
-      ok: data.pulse_status === "pulso_confirmado" || data.pulse_status === "saldo_pendente",
-      commandId: data.command_id,
-      pulseStatus: data.pulse_status,
-    };
+  /**
+   * A CompactPay responde ao POST assim que publica o comando MQTT, sem
+   * esperar a placa confirmar (evita travar a requisicao por segundos) - o
+   * resultado de verdade precisa ser consultado depois via
+   * GET /comandos-maquinas/{command_id}. Aqui fazemos esse polling ate um
+   * status final (executado/falhou/cancelado) ou timeout.
+   */
+  private async waitForCommandResult(
+    commandId: string,
+    timeoutMs = 8000,
+    pollIntervalMs = 250,
+  ): Promise<CompactPayDispenseResult> {
+    const deadline = Date.now() + timeoutMs;
+    let lastStatus = "pendente";
+
+    while (Date.now() < deadline) {
+      const command = await this.getCommandStatus(commandId);
+      lastStatus = command.status;
+
+      if (command.status === FINAL_SUCCESS_COMMAND_STATUS) {
+        return { ok: true, commandId, pulseStatus: command.detalhe_status ?? command.status };
+      }
+      if (FINAL_FAILURE_COMMAND_STATUSES.has(command.status)) {
+        return { ok: false, commandId, pulseStatus: command.detalhe_status ?? command.status };
+      }
+
+      await sleep(pollIntervalMs);
+    }
+
+    return { ok: false, commandId, pulseStatus: `falha_timeout (ultimo status: ${lastStatus})` };
+  }
+
+  private async getCommandStatus(commandId: string): Promise<ComandoMaquinaStatus> {
+    const response = await this.authorizedFetch(`/comandos-maquinas/${commandId}`, { method: "GET" });
+    return (await response.json()) as ComandoMaquinaStatus;
   }
 
   async listMachines(): Promise<CompactPayMachineSummary[]> {
