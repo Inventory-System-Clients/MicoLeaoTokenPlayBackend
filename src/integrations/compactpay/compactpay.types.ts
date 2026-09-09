@@ -15,7 +15,7 @@ export type CompactPayDispenseResult = {
   ok: boolean;
   /** command_id gerado pela CompactPay para este disparo (usado para rastrear no MQTT). */
   commandId: string;
-  /** Status de confirmacao do pulso reportado pela placa (ex: "pulso_confirmado", "falha_timeout"). */
+  /** Status do comando devolvido pela CompactPay ao aceitar o disparo (ex: "pendente") - nao espera confirmacao da placa. */
   pulseStatus: string;
 };
 

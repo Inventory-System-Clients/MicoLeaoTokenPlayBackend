@@ -15,8 +15,10 @@ export type PlayMachineResult = {
 
 /**
  * Regra B: debita fichas do usuario, converte para pulsos fisicos e dispara
- * o comando na CompactPay. Se a CompactPay nao confirmar o pulso, os fichas
- * sao estornados automaticamente.
+ * o comando na CompactPay. O pulso e considerado entregue assim que a
+ * CompactPay aceita o comando (nao ha confirmacao fisica da placa hoje); se
+ * o disparo em si falhar (erro de rede, autenticacao ou a CompactPay recusar
+ * o comando), os fichas sao estornados automaticamente.
  *
  * `quantity` permite disparar varias jogadas de uma vez (seletor +/- do
  * WebApp): os fichas e pulsos sao multiplicados, mas apenas UM comando de
